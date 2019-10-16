@@ -23,6 +23,13 @@ namespace Soccer_Vision
 
             EnableCorsAttribute cors = new EnableCorsAttribute("*", "*", "*");
             config.EnableCors(cors);
+
+            GlobalConfiguration.Configuration.Formatters.JsonFormatter.MediaTypeMappings
+             .Add(new System.Net.Http.Formatting.RequestHeaderMapping("Accept",
+                 "text/html",
+                 StringComparison.InvariantCultureIgnoreCase,
+                 true,
+                 "application/json"));
         }
     }
 }

@@ -12,8 +12,6 @@ namespace Soccer_Vision.Models
     {
         string StrCon = ConfigurationManager.ConnectionStrings["LIVEDNS"].ConnectionString;
         SqlConnection con = null;
-        DataTable dt = null;
-        SqlDataAdapter adapter = null;
         SqlCommand com = null;
         SqlDataReader reader = null;
         public DAL()
