@@ -18,5 +18,8 @@ namespace Soccer_Vision.Models
         public string MatchKey { get; set; }
         public bool IsActive { get; set; }
         public int MaxPlayers { get; set; }
+        public int PlayersJoined { get; set; }
+        public string PhotoUrl { get; set; }
+        public int PlayTime { get; set; }
     }
 }

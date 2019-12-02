@@ -1,6 +1,7 @@
 ﻿using Soccer_Vision.Models;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -40,11 +41,19 @@ namespace Soccer_Vision.Controllers
             try
             {
                 DAL dal = new DAL();
-                string result = dal.Register(user.Username, user.Email, user.Password);
-                if (result == "Registration complete")
+                int result = dal.Register(user.Username, user.Email, user.Password);
+                if (result > 0)
                     return Content(HttpStatusCode.Created, result);
+                else if (result == -2)
+                    return BadRequest("Invalid email and password");
+                else if (result == -3)
+                    return BadRequest("Invalid email");
+                else if (result == -4)
+                    return BadRequest("Invalid password");
+                else if (result == -5)
+                    return Ok("User already exists");
                 else
-                    return BadRequest(result);
+                    return BadRequest("Something went wrong");
             }
             catch (Exception e)
             {
@@ -53,7 +62,24 @@ namespace Soccer_Vision.Controllers
             }
         }
 
-        
+        [Route("getUsers")]
+        public IHttpActionResult GetUsers()
+        {
+            try
+            {
+                DAL dal = new DAL();
+                DataTable users = dal.getUsers();
+                if (users == null)
+                    return Content(HttpStatusCode.NotFound, "User does not exist");
+                else
+                    return Ok(users);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return Content(HttpStatusCode.BadRequest, "Something went wrong");
+            }
+        }
 
     }
 }

@@ -13,6 +13,7 @@ namespace Soccer_Vision.Models
         private string password;
         public int UserID { get; set; }
         public string Username { get; set; }
+        public string PhotoName { get; set; }
         public string Email
         {
             get
@@ -41,9 +42,6 @@ namespace Soccer_Vision.Models
                     password = "";
             }
         }
-        public int Points { get; set; }
-        public bool IsInMatch { get; set; }
-        public int MatchID { get; set; }
 
         private bool IsValidPassword(string input)
         {
