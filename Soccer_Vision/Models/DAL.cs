@@ -128,7 +128,9 @@ namespace Soccer_Vision.Models
                             Username = reader["Username"].ToString(),
                             Email = reader["Email"].ToString(),
                             Password = reader["Password"].ToString(),
-                            PhotoName = reader["ProfilePIC"].ToString()
+                            PhotoName = reader["ProfilePIC"].ToString(),
+                            Google_ID = reader["Google_ID"].ToString(),
+                            Facebook_ID = reader["Facebook_ID"].ToString()
                         };
                         reader.Close();
                         return user;
@@ -229,35 +231,168 @@ namespace Soccer_Vision.Models
 
         }
 
-        public object createGroup(int userID, string groupName, int maxPlayers)
+        public string changeUsername(int userID, string newUserName)
         {
             try
             {
                 con.Open();
-                com.CommandText = $"SELECT Accepted FROM FinalProject_Kasem_UsersInGroupsTB WHERE User_ID = {userID} AND Accepted = {1}";
+                com.CommandText = $"UPDATE FinalProject_Kasem_UsersTB SET Username = '{newUserName}' WHERE User_ID = {userID}";
+                int res = com.ExecuteNonQuery();
+                if (res != 1)
+                    throw new Exception("Something went Wrong!");
+
+                return "ok";
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+            }
+        }
+
+        public string changePassword(int userID, string newPassword)
+        {
+            try
+            {
+                con.Open();
+                User objForPasswordValidationCheck = new User() { Password = newPassword };
+                if (objForPasswordValidationCheck.Password == "" || objForPasswordValidationCheck == null)
+                    throw new Exception("Invalid password (password should be at least 8 characters and at least 1 number and 1 capital letter and 1 small letter)");
+
+                com.CommandText = $"UPDATE FinalProject_Kasem_UsersTB SET Password = '{newPassword}' WHERE User_ID = {userID}";
+                int res = com.ExecuteNonQuery();
+                if (res != 1)
+                    throw new Exception("Something went Wrong!");
+
+                return "ok";
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+            }
+        }
+
+        public User getUserAfterChanges(int userID)
+        {
+            try
+            {
+                con.Open();
+                com.CommandText = $"SELECT * FROM FinalProject_Kasem_UsersTB WHERE User_ID = {userID}";
                 reader = com.ExecuteReader();
                 if (reader.Read())
-                    return "You are already in group!";
-                reader.Close();
-                com.CommandText = $"INSERT INTO FinalProject_Kasem_GroupsTB (Admin_ID,Group_Name,Max_Player) VALUES (@param1,@param2,@param3) SELECT SCOPE_IDENTITY()";
+                {
+                    User user = new User()
+                    {
+                        UserID = userID,
+                        Username = reader["Username"].ToString(),
+                        Email = reader["Email"].ToString(),
+                        Password = reader["Password"].ToString(),
+                        PhotoName = reader["ProfilePIC"].ToString(),
+                        Google_ID = reader["Google_ID"].ToString(),
+                        Facebook_ID = reader["Facebook_ID"].ToString()
+                    };
+                    reader.Close();
+                    return user;
+                }
+                else
+                {
+                    reader.Close();
+                    return null;
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+                if (reader != null)
+                {
+                    if (!reader.IsClosed)
+                        reader.Close();
+                }
+
+            }
+        }
+
+        public string CancelGroup(int groupID)
+        {
+            try
+            {
+                con.Open();
+                com.CommandText = "CancelGroup";
+                com.CommandType = CommandType.StoredProcedure;
+                com.Parameters.AddWithValue("@Group_ID", groupID);
+                int res = com.ExecuteNonQuery();
+                if (res < 0)
+                    throw new Exception("Something went wrong!");
+                else if (res == 0)
+                    throw new Exception("You have already canceled the group");
+                return "Done!";
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+            }
+        }
+
+        public int createGroup(int userID, string groupName, int maxPlayers)
+        {
+            try
+            {
+                con.Open();
+                com.CommandText = $"INSERT INTO FinalProject_Kasem_GroupsTB (Admin_ID,Group_Name,Max_Players,Users_Joined) VALUES (@param1,@param2,@param3,@param4) SELECT SCOPE_IDENTITY()";
                 com.Parameters.AddWithValue("param1", userID);
                 com.Parameters.AddWithValue("param2", groupName);
                 com.Parameters.AddWithValue("param3", maxPlayers);
+                com.Parameters.AddWithValue("param4", 1);
                 object result = com.ExecuteScalar();
                 result = (result == DBNull.Value) ? null : result;
                 int groupID = Convert.ToInt32(result);
                 if (groupID < 1)
                     throw new Exception("Something went wrong");
 
-                com.CommandText = $"INSERT INTO FinalProject_Kasem_UsersInGroupsTB (User_ID,Group_ID,Accepted) VALUES (@param1,@param2,@param3)";
-                com.Parameters.AddWithValue("param1", userID);
-                com.Parameters.AddWithValue("param2", groupID);
-                com.Parameters.AddWithValue("param1", true);
+                com.CommandText = $"INSERT INTO FinalProject_Kasem_UsersInGroupsTB (User_ID,Group_ID,Accepted) VALUES (@param5,@param6,@param7)";
+                com.Parameters.AddWithValue("param5", userID);
+                com.Parameters.AddWithValue("param6", groupID);
+                com.Parameters.AddWithValue("param7", true);
                 int res = com.ExecuteNonQuery();
                 if (res != 1)
                     throw new Exception("Something went wrong");
 
-                return new { message = "Group created!", groupID };
+                return groupID;
             }
             catch (Exception e)
             {
@@ -292,9 +427,11 @@ namespace Soccer_Vision.Models
                 com.CommandType = CommandType.StoredProcedure;
                 com.Parameters.AddWithValue("@Match_ID", matchID);
                 int res = com.ExecuteNonQuery();
-                if (res < 2)
+                if (res < 0)
                     throw new Exception("Something went wrong!");
-                
+                else if (res == 0)
+                    throw new Exception("You have already canceled the match");
+
                 return "Done!";
             }
             catch (Exception e)
@@ -314,7 +451,7 @@ namespace Soccer_Vision.Models
 
         public int CreateMatch(int userID, string matchName, DateTime matchDate, TimeSpan matchTime, int field, int city, bool isPrivate, string matchKey, int maxPlayers, int timeToPlay)
         {
-            int checkMatch = checkIfUserMadeMatchInThisDayAndTime(userID, matchDate, matchTime, timeToPlay, city, field);
+            int checkMatch = checkIfUserCanMakeOrJoinMatchInThisDayAndTimeAndField(userID, matchDate, matchTime, timeToPlay, field, true);
             if (checkMatch == 1)
                 throw new Exception("You can't make another match in this field and date!");
             else if (checkMatch == -1)
@@ -324,7 +461,7 @@ namespace Soccer_Vision.Models
             else
             {
                 try
-                { 
+                {
 
                     if (timeToPlay > 5)
                         throw new Exception("Too much play time!!");
@@ -414,20 +551,145 @@ namespace Soccer_Vision.Models
             }
         }
 
-        private int checkIfUserMadeMatchInThisDayAndTime(int userID, DateTime date, TimeSpan time, int playtime, int cityID, int fieldID)
+        public int createMatchWithGroup(int userID, string matchName, DateTime matchDate, TimeSpan matchTime, int field, int city, bool isPrivate, string matchKey, int maxPlayers, int timeToPlay, List<int> usersIDs)
+        {
+            try
+            {
+
+
+                List<int> usersThatCanJoin = new List<int>();
+                foreach (int user in usersIDs)
+                {
+                    if (userID == user)
+                    {
+                        int check = checkIfUserCanMakeOrJoinMatchInThisDayAndTimeAndField(user, matchDate, matchTime, timeToPlay, field, true);
+                        if (check == 1)
+                            throw new Exception("You can't make another match in this field and date!");
+                        else if (check == -1)
+                            throw new Exception("Something went wrong");
+                        else if (check == 2)
+                            throw new Exception("You are in Match in this Time/There is a match in this time and field");
+                    }
+                    else
+                    {
+                        int check = checkIfUserCanMakeOrJoinMatchInThisDayAndTimeAndField(user, matchDate, matchTime, timeToPlay, field, false);
+                        if (check == 0)
+                            usersThatCanJoin.Add(user);
+                    }
+                }
+                if (timeToPlay > 5)
+                    throw new Exception("Too much play time!!");
+                else if (timeToPlay < 1)
+                    throw new Exception("Little play time!!");
+
+                if (maxPlayers > 10)
+                    throw new Exception("Too much players!");
+
+
+                Matchs match = new Matchs()
+                {
+                    MatchName = matchName,
+                    UserID = userID,
+                    MatchDate = matchDate,
+                    MatchTime = matchTime,
+                    IsPrivate = isPrivate,
+                    MatchKey = matchKey,
+                    IsActive = true,
+                    MaxPlayers = maxPlayers,
+                    CityID = city,
+                    FieldID = field,
+                    PlayTime = timeToPlay
+                };
+
+                con.Open();
+                com.CommandText = "INSERT INTO FinalProject_Kasem_MatchesTB (Match_Name," +
+                    "Admin_ID,Field_ID,City_ID,IsActive,Players_Joined,Max_Players,IsPrivate,Match_Key,Match_Date,Match_Time,Play_Time) VALUES " +
+                    "(@param1,@param2,@param3,@param4,@param5,@param6,@param7,@param8,@param9,@param10,@param11,@param12) SELECT SCOPE_IDENTITY()";
+                com.Parameters.AddWithValue("param1", match.MatchName);
+                com.Parameters.AddWithValue("param2", match.UserID);
+                com.Parameters.AddWithValue("param3", match.FieldID);
+                com.Parameters.AddWithValue("param4", match.CityID);
+                com.Parameters.AddWithValue("param5", match.IsActive);
+                com.Parameters.AddWithValue("param6", 1);
+                com.Parameters.AddWithValue("param7", match.MaxPlayers);
+                com.Parameters.AddWithValue("param8", match.IsPrivate);
+                if (String.IsNullOrEmpty(match.MatchKey))
+                    com.Parameters.AddWithValue("param9", DBNull.Value);
+                else
+                    com.Parameters.AddWithValue("param9", match.MatchKey);
+                com.Parameters.AddWithValue("param10", match.MatchDate);
+                com.Parameters.AddWithValue("param11", match.MatchTime);
+                com.Parameters.AddWithValue("param12", match.PlayTime);
+                object res = com.ExecuteScalar();
+                res = (res == DBNull.Value) ? null : res;
+                int matchID = Convert.ToInt32(res);
+                if (matchID < 1)
+                    throw new Exception("Something went wrong");
+
+                com.CommandText = $"INSERT INTO FinalProject_Kasem_UsersInMatch (User_ID,Match_ID,Accepted) VALUES (@param13,@param14,@param15)";
+                com.Parameters.AddWithValue("param13", match.UserID);
+                com.Parameters.AddWithValue("param14", matchID);
+                com.Parameters.AddWithValue("param15", true);
+                int result = com.ExecuteNonQuery();
+                if (result < 1)
+                {
+                    throw new Exception("Something went wrong");
+                }
+                SqlTransaction trans = con.BeginTransaction();
+                com.Transaction = trans;
+                com.CommandText = $"INSERT INTO FinalProject_Kasem_UsersInvitedToMatch (User_ID,Match_ID,Accepted) VALUES (@param16,@param17,@param18)";
+                com.Parameters.Add(new SqlParameter("@param16", SqlDbType.Int));
+                com.Parameters.Add(new SqlParameter("@param17", SqlDbType.Int));
+                com.Parameters.Add(new SqlParameter("@param18", SqlDbType.Bit));
+                foreach (int user in usersThatCanJoin)
+                {
+                    com.Parameters[15].Value = user;
+                    com.Parameters[16].Value = matchID;
+                    com.Parameters[17].Value = false;
+                    result = com.ExecuteNonQuery();
+                    if (result < 1)
+                    {
+                        throw new Exception("Something went wrong");
+                    }
+                }
+                trans.Commit();
+                return matchID;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+                if (reader != null)
+                {
+                    if (!reader.IsClosed)
+                        reader.Close();
+                }
+            }
+        }
+
+        private int checkIfUserCanMakeOrJoinMatchInThisDayAndTimeAndField(int userID, DateTime date, TimeSpan time, int playtime, int fieldID, bool isCreateMatch)
         {
             try
             {
                 con.Open();
 
 
-                DataTable MatchesJoinedInThisDate = getMatchesJoinedInThisDateAndMatchesInThisField(userID, date, cityID, fieldID);
-                if (MatchesJoinedInThisDate != null)
+                DataTable MatchesInThisDate = getMatchesInThisDateForMatchMakingOrJoining(userID, date, fieldID, isCreateMatch);
+                if (MatchesInThisDate != null)
                 {
-                    if (MatchesJoinedInThisDate.Rows.Count != 0)
+                    if (MatchesInThisDate.Rows.Count != 0)
                     {
-                        foreach (DataRow row in MatchesJoinedInThisDate.Rows)
+                        foreach (DataRow row in MatchesInThisDate.Rows)
                         {
+
                             if (time > TimeSpan.Parse(row["Match_Time"].ToString()))
                             {
                                 if ((time - TimeSpan.Parse(row["Match_Time"].ToString())).Hours < int.Parse(row["Play_Time"].ToString()))
@@ -444,6 +706,7 @@ namespace Soccer_Vision.Models
                             }
                             else if (time == TimeSpan.Parse(row["Match_Time"].ToString()))
                                 return 2;
+
                         }
                         return 0;
                     }
@@ -478,7 +741,7 @@ namespace Soccer_Vision.Models
             }
         }
 
-        private DataTable getMatchesJoinedInThisDateAndMatchesInThisField(int userID, DateTime matchDate, int cityID, int fieldID)
+        private DataTable getMatchesInThisDateForMatchMakingOrJoining(int userID, DateTime matchDate, int fieldID, bool isCreateMatch)
         {
             try
             {
@@ -490,49 +753,89 @@ namespace Soccer_Vision.Models
                 adapt = new SqlDataAdapter(com);
                 adapt.Fill(ds, "MatchesUserInvitedTo");
 
-                if (ds.Tables["MatchesUserInvitedTo"].Rows.Count == 0 && ds.Tables["MatchesUserIN"].Rows.Count == 0)
+                if (!isCreateMatch)
+                {
+                    if (ds.Tables["MatchesUserIN"].Rows.Count != 0 || ds.Tables["MatchesUserInvitedTo"].Rows.Count != 0)
+                    {
+                        string commandText = $"SELECT * FROM FinalProject_Kasem_MatchesTB WHERE Match_Date = '{matchDate.ToString("yyyy-MM-dd")}' AND Match_ID IN (";
+                        if (ds.Tables["MatchesUserIN"].Rows.Count != 0)
+                        {
+                            int count = 0;
+                            foreach (DataRow data in ds.Tables["MatchesUserIN"].Rows)
+                            {
+                                if (count == 0)
+                                    commandText += $"{int.Parse(data["Match_ID"].ToString())}";
+                                else
+                                    commandText += $", {int.Parse(data["Match_ID"].ToString())}";
+                                count++;
+                            }
+                        }
+                        if (ds.Tables["MatchesUserInvitedTo"].Rows.Count != 0)
+                        {
+                            int count = 0;
+                            foreach (DataRow data in ds.Tables["MatchesUserIN"].Rows)
+                            {
+                                if (count == 0)
+                                    commandText += $"{int.Parse(data["Match_ID"].ToString())}";
+                                else
+                                    commandText += $", {int.Parse(data["Match_ID"].ToString())}";
+                                count++;
+                            }
+                        }
+                        commandText += ')';
+                        com.CommandText = commandText;
+                        adapt = new SqlDataAdapter(com);
+                        adapt.Fill(ds, "MatchesDetailed");
+                        return ds.Tables["MatchesDetailed"];
+                    }
                     return ds.Tables["MatchesUserIN"];
-
-                string commandText = $"SELECT * FROM FinalProject_Kasem_MatchesTB WHERE (Match_Date = '{matchDate.ToString("yyyy-MM-dd")}' AND Match_ID IN (";
-                int tempCount = 0;
-                foreach (DataRow data in ds.Tables["MatchesUserIN"].Rows)
+                }
+                else
                 {
-                    if (tempCount == 0)
+                    string commandText = $"SELECT * FROM FinalProject_Kasem_MatchesTB WHERE Match_Date = '{matchDate.ToString("yyyy-MM-dd")}' AND (Field_ID = ${fieldID}";
+                    if (ds.Tables["MatchesUserIN"].Rows.Count != 0 || ds.Tables["MatchesUserInvitedTo"].Rows.Count != 0)
                     {
-                        tempCount++;
-                        commandText += $"{data["Match_ID"]}";
+                        commandText += $" OR (NOT Field_ID = ${fieldID} AND Match_ID IN (";
+                        if (ds.Tables["MatchesUserIN"].Rows.Count != 0)
+                        {
+                            int count = 0;
+                            foreach (DataRow data in ds.Tables["MatchesUserIN"].Rows)
+                            {
+                                if (count == 0)
+                                    commandText += $"{int.Parse(data["Match_ID"].ToString())}";
+                                else
+                                    commandText += $", {int.Parse(data["Match_ID"].ToString())}";
+                                count++;
+                            }
+                        }
+                        if (ds.Tables["MatchesUserInvitedTo"].Rows.Count != 0)
+                        {
+                            int count = 0;
+                            foreach (DataRow data in ds.Tables["MatchesUserIN"].Rows)
+                            {
+                                if (count == 0)
+                                    commandText += $"{int.Parse(data["Match_ID"].ToString())}";
+                                else
+                                    commandText += $", {int.Parse(data["Match_ID"].ToString())}";
+                                count++;
+                            }
+                        }
+                        commandText += ")))";
                     }
                     else
+                        commandText += ')';
+                    com.CommandText = commandText;
+                    adapt = new SqlDataAdapter(com);
+                    adapt.Fill(ds, "MatchesDetailed");
+                    foreach (DataRow data1 in ds.Tables["MatchesDetailed"].Rows)
                     {
-                        commandText += $",{data["Match_ID"]}";
+                        if (int.Parse(data1["Admin_ID"].ToString()) == userID
+                            && int.Parse(data1["Field_ID"].ToString()) == fieldID)
+                            return null;
                     }
-                }
-                tempCount = 0;
-                foreach (DataRow data in ds.Tables["MatchesUserInvitedTo"].Rows)
-                {
-                    if (tempCount == 0)
-                    {
-                        tempCount++;
-                        commandText += $"{data["Match_ID"]}";
-                    }
-                    else
-                    {
-                        commandText += $",{data["Match_ID"]}";
-                    }
-                }
-                commandText += $")) OR (Match_Date = '{matchDate.ToString("yyyy-MM-dd")}' AND City_ID = {cityID} AND Field_ID = {fieldID})";
-                com.CommandText = commandText;
-                adapt = new SqlDataAdapter(com);
-                adapt.Fill(ds, "MatchesDetailed");
 
-                foreach (DataRow data1 in ds.Tables["MatchesDetailed"].Rows)
-                {
-                    if (DateTime.Parse(data1["Match_Date"].ToString()) == matchDate && int.Parse(data1["City_ID"].ToString()) == cityID &&
-                        int.Parse(data1["Field_ID"].ToString()) == fieldID)
-                        return null;
+                    return ds.Tables["MatchesDetailed"];
                 }
-
-                return ds.Tables["MatchesDetailed"];
 
             }
             catch (Exception e)
@@ -560,28 +863,41 @@ namespace Soccer_Vision.Models
             {
                 try
                 {
+                    con.Open();
+                    com.CommandText = $"SELECT * FROM FinalProject_Kasem_UsersInMatch WHERE User_ID = {userID} AND Match_ID = {matchID} AND Accepted = {1}";
+                    reader = com.ExecuteReader();
+                    if (!reader.Read())
+                    {
+                        reader.Close();
+                        com.CommandText = $"SELECT * FROM FinalProject_Kasem_UsersInvitedToMatch WHERE User_ID = {userID} AND Match_ID = {matchID} AND Accepted = {1}";
+                        reader = com.ExecuteReader();
+                        if (!reader.Read())
+                        {
+                            reader.Close();
+                            return "User already exited the match";
+                        }
+                    }
+                    reader.Close();
                     if (userID != adminID)
                     {
-                        con.Open();
                         com.CommandText = "ExitMatchUser";
                         com.CommandType = CommandType.StoredProcedure;
                         com.Parameters.AddWithValue("@User_ID", userID);
                         com.Parameters.AddWithValue("@Match_ID", matchID);
                         int rowsAffected = com.ExecuteNonQuery();
-                        if (rowsAffected != 2)
+                        if (rowsAffected < 0)
                             throw new Exception("Something went wrong!");
 
                         return "Done!";
                     }
                     else
                     {
-                        con.Open();
-                        com.CommandText = $"SELECT TOP 1 User_ID FROM FinalProject_Kasem_UsersInMatch WHERE NOT User_ID = {userID}";
+                        com.CommandText = $"SELECT TOP 1 User_ID FROM FinalProject_Kasem_UsersInMatch WHERE NOT User_ID = {userID} AND Accepted = {1} AND Match_ID = {matchID}";
                         reader = com.ExecuteReader();
-                        if(!reader.Read())
+                        if (!reader.Read())
                         {
                             reader.Close();
-                            com.CommandText = $"SELECT TOP 1 User_ID FROM FinalProject_Kasem_UsersInvitedToMatch WHERE NOT User_ID = {userID}";
+                            com.CommandText = $"SELECT TOP 1 User_ID FROM FinalProject_Kasem_UsersInvitedToMatch WHERE NOT User_ID = {userID} AND Accepted = {1} AND Match_ID = {matchID}";
                             reader = com.ExecuteReader();
                             if (!reader.Read())
                                 throw new Exception("Something went wrong!");
@@ -594,7 +910,90 @@ namespace Soccer_Vision.Models
                         com.Parameters.AddWithValue("@Match_ID", matchID);
                         com.Parameters.AddWithValue("@NewAdmin", newAdmin);
                         int rowsAffected = com.ExecuteNonQuery();
-                        if (rowsAffected != 2)
+                        if (rowsAffected < 0)
+                            throw new Exception("Something went wrong!");
+
+                        return "Done!";
+                    }
+
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
+                    throw new Exception(e.Message);
+                }
+                finally
+                {
+                    if (con != null)
+                    {
+                        if (con.State == ConnectionState.Open)
+                            con.Close();
+                    }
+                    if (reader != null)
+                    {
+                        if (!reader.IsClosed)
+                            reader.Close();
+                    }
+                }
+            }
+        }
+
+        public string ExitGroup(int userID, int groupID, int adminID, int playersJoined)
+        {
+            if (playersJoined == 1)
+                return CancelGroup(groupID);
+            else
+            {
+                try
+                {
+                    con.Open();
+                    com.CommandText = $"SELECT * FROM FinalProject_Kasem_UsersInGroupsTB WHERE User_ID = {userID} AND Group_ID = {groupID} AND Accepted = {1}";
+                    reader = com.ExecuteReader();
+                    if (!reader.Read())
+                    {
+                        reader.Close();
+                        com.CommandText = $"SELECT * FROM FinalProject_Kasem_UsersInvitedToGroup WHERE User_ID = {userID} AND Group_ID = {groupID} AND Accepted = {1}";
+                        reader = com.ExecuteReader();
+                        if (!reader.Read())
+                        {
+                            reader.Close();
+                            return "User already exited the group";
+                        }
+                    }
+                    reader.Close();
+                    if (userID != adminID)
+                    {
+                        com.CommandText = "ExitGroupUser";
+                        com.CommandType = CommandType.StoredProcedure;
+                        com.Parameters.AddWithValue("@User_ID", userID);
+                        com.Parameters.AddWithValue("@Group_ID", groupID);
+                        int rowsAffected = com.ExecuteNonQuery();
+                        if (rowsAffected < 0)
+                            throw new Exception("Something went wrong!");
+
+                        return "Done!";
+                    }
+                    else
+                    {
+                        com.CommandText = $"SELECT TOP 1 User_ID FROM FinalProject_Kasem_UsersInGroupsTB WHERE NOT User_ID = {userID} AND Accepted = {1} AND Group_ID = {groupID}";
+                        reader = com.ExecuteReader();
+                        if (!reader.Read())
+                        {
+                            reader.Close();
+                            com.CommandText = $"SELECT TOP 1 User_ID FROM FinalProject_Kasem_UsersInvitedToGroup WHERE NOT User_ID = {userID} AND Accepted = {1} AND Group_ID = {groupID}";
+                            reader = com.ExecuteReader();
+                            if (!reader.Read())
+                                throw new Exception("Something went wrong!");
+                        }
+                        int newAdmin = int.Parse(reader["User_ID"].ToString());
+                        reader.Close();
+                        com.CommandText = "ExitGroupAdmin";
+                        com.CommandType = CommandType.StoredProcedure;
+                        com.Parameters.AddWithValue("@User_ID", userID);
+                        com.Parameters.AddWithValue("@Group_ID", groupID);
+                        com.Parameters.AddWithValue("@NewAdmin", newAdmin);
+                        int rowsAffected = com.ExecuteNonQuery();
+                        if (rowsAffected < 0)
                             throw new Exception("Something went wrong!");
 
                         return "Done!";
@@ -629,8 +1028,39 @@ namespace Soccer_Vision.Models
                 con.Open();
                 com.CommandText = $"DELETE FROM FinalProject_Kasem_UsersInMatch WHERE User_ID = {userID} AND Match_ID = {matchID}";
                 int res = com.ExecuteNonQuery();
-                if (res < 1)
+                if (res < 0)
                     throw new Exception("Something went wrong!");
+                else if (res == 0)
+                    throw new Exception("You have already canceled the request");
+
+                return "Done!";
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+            }
+        }
+
+        public string CancelGroupRequest(int userID, int groupID)
+        {
+            try
+            {
+                con.Open();
+                com.CommandText = $"DELETE FROM FinalProject_Kasem_UsersInGroupsTB WHERE User_ID = {userID} AND Group_ID = {groupID}";
+                int res = com.ExecuteNonQuery();
+                if (res < 0)
+                    throw new Exception("Something went wrong!");
+                else if (res == 0)
+                    throw new Exception("You have already canceled the request");
 
                 return "Done!";
             }
@@ -656,8 +1086,39 @@ namespace Soccer_Vision.Models
                 con.Open();
                 com.CommandText = $"DELETE FROM FinalProject_Kasem_UsersInvitedToMatch WHERE User_ID = {userID} AND Match_ID = {matchID}";
                 int res = com.ExecuteNonQuery();
-                if (res < 1)
+                if (res < 0)
                     throw new Exception("Something went wrong!");
+                else if (res == 0)
+                    throw new Exception("You have already canceled the invite");
+
+                return "Done!";
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+            }
+        }
+
+        public string CancelGroupInvite(int userID, int groupID)
+        {
+            try
+            {
+                con.Open();
+                com.CommandText = $"DELETE FROM FinalProject_Kasem_UsersInvitedToGroup WHERE User_ID = {userID} AND Group_ID = {groupID}";
+                int res = com.ExecuteNonQuery();
+                if (res < 0)
+                    throw new Exception("Something went wrong!");
+                else if (res == 0)
+                    throw new Exception("You have already canceled the invite");
 
                 return "Done!";
             }
@@ -693,7 +1154,68 @@ namespace Soccer_Vision.Models
                         return "Match is no longer available";
                 }
                 reader.Close();
-                con.Close();
+                if (checkSpace == 0)
+                    return "No space in match!";
+                else
+                {
+
+                    con.Close();
+
+
+                    int checkIfMatchIsActive = CheckIfMatchIsActive(matchID);
+                    if (checkIfMatchIsActive == 1)
+                        return "Match is not active!";
+                    else
+                    {
+                        int checkMatch = checkIfUserCanMakeOrJoinMatchInThisDayAndTimeAndField(userID, matchDate, matchTime, playTime, fieldID, false);
+                        if (checkMatch == 1)
+                            return "You can't join another match in this field and date!";
+                        else if (checkMatch == -1)
+                            return "Something went wrong";
+                        else if (checkMatch == 2)
+                            return "You are in Match in this Time/There is a match in this time and field";
+                        else
+                        {
+                            con.Open();
+                            com.CommandText = $"SELECT Accepted FROM FinalProject_Kasem_UsersInvitedToMatch WHERE User_ID = {userID} AND Match_ID = {matchID}";
+                            reader = com.ExecuteReader();
+                            if (reader.Read())
+                            {
+                                if (!bool.Parse(reader["Accepted"].ToString()))
+                                {
+                                    reader.Close();
+                                    com.CommandText = $"UPDATE FinalProject_Kasem_UsersInvitedToMatch SET Accepted = {1} WHERE User_ID = {userID} AND Match_ID = {matchID}";
+                                    int res = com.ExecuteNonQuery();
+                                    if (res < 1)
+                                        return "Something went wrong!";
+                                    com.CommandText = $"UPDATE FinalProject_Kasem_MatchesTB SET Players_Joined = (Players_Joined + 1) WHERE Match_ID = {matchID}";
+                                    res = com.ExecuteNonQuery();
+                                    if (res > 0)
+                                        return "You have joined the match because you were invited!";
+                                    return "Something went wrong!";
+                                }
+                                return "You are in this match!";
+                            }
+                            reader.Close();
+                            com.CommandText = $"SELECT User_ID FROM FinalProject_Kasem_UsersInMatch WHERE User_ID = {userID} AND Match_ID = {matchID}";
+                            reader = com.ExecuteReader();
+                            if (reader.Read())
+                            {
+                                return "You have already requested to join this match!";
+                            }
+                            reader.Close();
+                            com.CommandText = $"INSERT INTO FinalProject_Kasem_UsersInMatch (Match_ID,User_ID,Accepted) VALUES (@param1, @param2, @param3)";
+                            com.Parameters.AddWithValue("param1", matchID);
+                            com.Parameters.AddWithValue("param2", userID);
+                            com.Parameters.AddWithValue("param3", false);
+                            int result = com.ExecuteNonQuery();
+                            if (result != 1)
+                                return "something went wrong";
+
+                            return "You have requested to join the match";
+                        }
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -713,56 +1235,80 @@ namespace Soccer_Vision.Models
                         reader.Close();
                 }
             }
-            if (checkSpace == 0)
-                return "No space in match!";
-            else
+        }
+
+        public string RequestJoinGroup(int userID, int groupID, int maxPlayers)
+        {
+            int checkSpace = 1;
+            try
             {
-                int checkIfMatchIsActive = CheckIfMatchIsActive(matchID);
-                if (checkIfMatchIsActive == 1)
-                    return "Match is not active!";
+                con.Open();
+                com.CommandText = $"SELECT Users_Joined FROM FinalProject_Kasem_GroupsTB WHERE Group_ID = {groupID}";
+                reader = com.ExecuteReader();
+                if (reader.Read())
+                {
+                    checkSpace = int.Parse(reader["Users_Joined"].ToString()) < maxPlayers ?
+                        1 : 0;
+                }
+                reader.Close();
+                if (checkSpace == 0)
+                    return "No space in group!";
                 else
                 {
-                    int checkMatch = checkIfUserMadeMatchInThisDayAndTime(userID, matchDate, matchTime, playTime, cityID, fieldID);
-                    if (checkMatch == 1)
-                        return "You can't join another match in this field and date!";
-                    else if (checkMatch == -1)
-                        return "Something went wrong";
-                    else if (checkMatch == 2)
-                        return "You are in Match in this Time/There is a match in this time and field";
-                    else
+                    com.CommandText = $"SELECT Accepted FROM FinalProject_Kasem_UsersInvitedToGroup WHERE User_ID = {userID} AND Group_ID = {groupID}";
+                    reader = com.ExecuteReader();
+                    if (reader.Read())
                     {
-                        try
+                        if (!bool.Parse(reader["Accepted"].ToString()))
                         {
-                            con.Open();
-                            com.CommandText = $"INSERT INTO FinalProject_Kasem_UsersInMatch (Match_ID,User_ID,Accepted) VALUES (@param1, @param2, @param3)";
-                            com.Parameters.AddWithValue("param1", matchID);
-                            com.Parameters.AddWithValue("param2", userID);
-                            com.Parameters.AddWithValue("param3", false);
-                            int result = com.ExecuteNonQuery();
-                            if (result != 1)
-                                return "something went wrong";
-
-                            return "You have requested to join the match";
+                            reader.Close();
+                            com.CommandText = $"UPDATE FinalProject_Kasem_UsersInvitedToGroup SET Accepted = {1} WHERE User_ID = {userID} AND Group_ID = {groupID}";
+                            int res = com.ExecuteNonQuery();
+                            if (res < 1)
+                                return "Something went wrong!";
+                            com.CommandText = $"UPDATE FinalProject_Kasem_GroupsTB SET Users_Joined = (Users_Joined + 1) WHERE Group_ID = {groupID}";
+                            res = com.ExecuteNonQuery();
+                            if (res > 0)
+                                return "You have joined the group because you were invited!";
+                            return "Something went wrong!";
                         }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e.Message);
-                            throw new Exception(e.Message);
-                        }
-                        finally
-                        {
-                            if (con != null)
-                            {
-                                if (con.State == ConnectionState.Open)
-                                    con.Close();
-                            }
-                            if (reader != null)
-                            {
-                                if (!reader.IsClosed)
-                                    reader.Close();
-                            }
-                        }
+                        return "You are in this group!";
                     }
+                    reader.Close();
+                    com.CommandText = $"SELECT User_ID FROM FinalProject_Kasem_UsersInGroupsTB WHERE User_ID = {userID} AND Group_ID = {groupID}";
+                    reader = com.ExecuteReader();
+                    if (reader.Read())
+                    {
+                        return "You have already requested to join this group!";
+                    }
+                    reader.Close();
+                    com.CommandText = $"INSERT INTO FinalProject_Kasem_UsersInGroupsTB (Group_ID,User_ID,Accepted) VALUES (@param1, @param2, @param3)";
+                    com.Parameters.AddWithValue("param1", groupID);
+                    com.Parameters.AddWithValue("param2", userID);
+                    com.Parameters.AddWithValue("param3", false);
+                    int result = com.ExecuteNonQuery();
+                    if (result != 1)
+                        return "something went wrong";
+
+                    return "You have requested to join the group";
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+                if (reader != null)
+                {
+                    if (!reader.IsClosed)
+                        reader.Close();
                 }
             }
         }
@@ -783,20 +1329,12 @@ namespace Soccer_Vision.Models
                     if (!bool.Parse(reader["IsActive"].ToString()))
                     {
                         reader.Close();
-                        if (!IsInvite)
-                        {
-                            com.CommandText = $"DELETE FROM FinalProject_Kasem_UsersInMatch WHERE User_ID = {userID} AND Match_ID = {matchID}";
-                            int res = com.ExecuteNonQuery();
-                            if (res != 1)
-                                return "Something went wrong";
-                        }
-                        else
-                        {
-                            com.CommandText = $"DELETE FROM FinalProject_Kasem_UsersInvitedToMatch WHERE User_ID = {userID} AND Match_ID = {matchID}";
-                            int res = com.ExecuteNonQuery();
-                            if (res != 1)
-                                return "Something went wrong";
-                        }
+                        com.CommandText = $"DELETE FROM FinalProject_Kasem_UsersInMatch WHERE Match_ID = {matchID}";
+                        com.ExecuteNonQuery();
+
+                        com.CommandText = $"DELETE FROM FinalProject_Kasem_UsersInvitedToMatch WHERE Match_ID = {matchID}";
+                        com.ExecuteNonQuery();
+
                         return "Match is no longer available";
                     }
                 }
@@ -806,12 +1344,18 @@ namespace Soccer_Vision.Models
                     return "No space in match!";
                 else
                 {
+
+                    if (con != null)
+                    {
+                        if (con.State == ConnectionState.Open)
+                            con.Close();
+                    }
                     int checkIfMatchIsActive = CheckIfMatchIsActive(matchID);
                     if (checkIfMatchIsActive == 1)
                         return "Match is not active!";
                     else
                     {
-                        int checkMatch = checkIfUserMadeMatchInThisDayAndTime(userID, matchDate, matchTime, playTime, cityID, fieldID);
+                        int checkMatch = checkIfUserCanMakeOrJoinMatchInThisDayAndTimeAndField(userID, matchDate, matchTime, playTime, fieldID, false);
                         if (checkMatch == 1)
                             return "This user can't join another match in this field and date!";
                         else if (checkMatch == -1)
@@ -820,23 +1364,46 @@ namespace Soccer_Vision.Models
                             return "this user in Match in this Time";
                         else
                         {
+                            con.Open();
                             if (!IsInvite)
                             {
-                                com.CommandText = $"UPDATE FinalProject_Kasem_UsersInMatch SET Accepted = {1}";
+                                com.CommandText = $"SELECT Accepted FROM FinalProject_Kasem_UsersInMatch WHERE User_ID = {userID} AND Match_ID = {matchID}";
+                                reader = com.ExecuteReader();
+                                if (reader.Read())
+                                {
+                                    if (bool.Parse(reader["Accepted"].ToString()))
+                                    {
+                                        reader.Close();
+                                        return "You have already accepted to let him join!";
+                                    }
+                                }
+                                reader.Close();
+                                com.CommandText = $"UPDATE FinalProject_Kasem_UsersInMatch SET Accepted = {1} WHERE User_ID = {userID} AND Match_ID = {matchID}";
                                 int res = com.ExecuteNonQuery();
-                                if (res != 1)
+                                if (res < 0)
                                     return "Something went Wrong!";
                             }
                             else
                             {
-                                com.CommandText = $"UPDATE FinalProject_Kasem_UsersInvitedToMatch SET Accepted = {1}";
+                                com.CommandText = $"SELECT Accepted FROM FinalProject_Kasem_UsersInvitedToMatch WHERE User_ID = {userID} AND Match_ID = {matchID}";
+                                reader = com.ExecuteReader();
+                                if (reader.Read())
+                                {
+                                    if (bool.Parse(reader["Accepted"].ToString()))
+                                    {
+                                        reader.Close();
+                                        return "You have already accepted to join the match!";
+                                    }
+                                }
+                                reader.Close();
+                                com.CommandText = $"UPDATE FinalProject_Kasem_UsersInvitedToMatch SET Accepted = {1} WHERE User_ID = {userID} AND Match_ID = {matchID}";
                                 int res = com.ExecuteNonQuery();
-                                if (res != 1)
+                                if (res < 0)
                                     return "Something went Wrong!";
                             }
 
 
-                            com.CommandText = $"UPDATE FinalProject_Kasem_MatchesTB SET Players_Joined = (Players_Joined + 1)";
+                            com.CommandText = $"UPDATE FinalProject_Kasem_MatchesTB SET Players_Joined = (Players_Joined + 1) WHERE Match_ID = {matchID}";
                             int result = com.ExecuteNonQuery();
                             if (result != 1)
                                 return "Something went Wrong!";
@@ -857,6 +1424,96 @@ namespace Soccer_Vision.Models
                 {
                     if (con.State == ConnectionState.Open)
                         con.Close();
+                }
+                if (reader != null)
+                {
+                    if (!reader.IsClosed)
+                        reader.Close();
+                }
+            }
+        }
+
+        public string AcceptRequestJoinGroup(int userID, int groupID, int maxPlayers, bool IsInvite)
+        {
+            try
+            {
+                con.Open();
+                int checkSpace = 1;
+                com.CommandText = $"SELECT Users_Joined FROM FinalProject_Kasem_GroupsTB WHERE Group_ID = {groupID}";
+                reader = com.ExecuteReader();
+                if (reader.Read())
+                {
+                    if (int.Parse(reader["Users_Joined"].ToString()) >= maxPlayers)
+                        checkSpace = 0;
+                }
+                reader.Close();
+
+                if (checkSpace == 0)
+                    return "No space in group!";
+                else
+                {
+                    if (!IsInvite)
+                    {
+                        com.CommandText = $"SELECT Accepted FROM FinalProject_Kasem_UsersInGroupsTB WHERE User_ID = {userID} AND Group_ID = {groupID}";
+                        reader = com.ExecuteReader();
+                        if (reader.Read())
+                        {
+                            if (bool.Parse(reader["Accepted"].ToString()))
+                            {
+                                reader.Close();
+                                return "You have already accepted to let him join!";
+                            }
+                        }
+                        reader.Close();
+                        com.CommandText = $"UPDATE FinalProject_Kasem_UsersInGroupsTB SET Accepted = {1} WHERE User_ID = {userID} AND Group_ID = {groupID}";
+                        int res = com.ExecuteNonQuery();
+                        if (res < 0)
+                            return "Something went Wrong!";
+                    }
+                    else
+                    {
+                        com.CommandText = $"SELECT Accepted FROM FinalProject_Kasem_UsersInvitedToGroup WHERE User_ID = {userID} AND Group_ID = {groupID}";
+                        reader = com.ExecuteReader();
+                        if (reader.Read())
+                        {
+                            if (bool.Parse(reader["Accepted"].ToString()))
+                            {
+                                reader.Close();
+                                return "You have already accepted to join the group!";
+                            }
+                        }
+                        reader.Close();
+                        com.CommandText = $"UPDATE FinalProject_Kasem_UsersInvitedToGroup SET Accepted = {1} WHERE User_ID = {userID} AND Group_ID = {groupID}";
+                        int res = com.ExecuteNonQuery();
+                        if (res < 0)
+                            return "Something went Wrong!";
+                    }
+
+
+                    com.CommandText = $"UPDATE FinalProject_Kasem_GroupsTB SET Users_Joined = (Users_Joined + 1) WHERE Group_ID = {groupID}";
+                    int result = com.ExecuteNonQuery();
+                    if (result != 1)
+                        return "Something went Wrong!";
+
+                    return "Done!";
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+                if (reader != null)
+                {
+                    if (!reader.IsClosed)
+                        reader.Close();
                 }
             }
         }
@@ -879,6 +1536,61 @@ namespace Soccer_Vision.Models
                 }
                 reader.Close();
                 con.Close();
+
+
+                if (checkSpace == 0)
+                    return "No space in match!";
+                else
+                {
+                    int checkMatch = checkIfUserCanMakeOrJoinMatchInThisDayAndTimeAndField(friendID, matchDate, matchTime, playTime, fieldID, false);
+                    if (checkMatch == 1)
+                        return "You can't invite this friend because he is in another match in this field and date!";
+                    else if (checkMatch == -1)
+                        return "Something went wrong";
+                    else if (checkMatch == 2)
+                        return "he is in Match in this Time!";
+                    else
+                    {
+                        con.Open();
+                        com.CommandText = $"SELECT Accepted FROM FinalProject_Kasem_UsersInMatch WHERE User_ID = {friendID} AND Match_ID = {matchID}";
+                        reader = com.ExecuteReader();
+                        if (reader.Read())
+                        {
+                            if (!bool.Parse(reader["Accepted"].ToString()))
+                            {
+                                reader.Close();
+                                com.CommandText = $"UPDATE FinalProject_Kasem_UsersInMatch SET Accepted = {1} WHERE User_ID = {friendID} AND Match_ID = {matchID}";
+                                int res = com.ExecuteNonQuery();
+                                if (res < 1)
+                                    return "Something went wrong!";
+                                com.CommandText = $"UPDATE FinalProject_Kasem_MatchesTB SET Players_Joined = (Players_Joined + 1) WHERE Match_ID = {matchID}";
+                                res = com.ExecuteNonQuery();
+                                if (res > 0)
+                                    return "the player requested to join before you invite him so he will join immediately!";
+                                return "Something went wrong!";
+                            }
+                            return "he is in the match!";
+                        }
+                        reader.Close();
+                        com.CommandText = $"SELECT User_ID FROM FinalProject_Kasem_UsersInvitedToMatch WHERE User_ID = {friendID} AND Match_ID = {matchID}";
+                        reader = com.ExecuteReader();
+                        if (reader.Read())
+                        {
+                            reader.Close();
+                            return "You have already invited him to join this match!";
+                        }
+                        reader.Close();
+                        com.CommandText = $"INSERT INTO FinalProject_Kasem_UsersInvitedToMatch (Match_ID,User_ID,Accepted) VALUES (@param1,@param2,@param3)";
+                        com.Parameters.AddWithValue("param1", matchID);
+                        com.Parameters.AddWithValue("param2", friendID);
+                        com.Parameters.AddWithValue("param3", false);
+                        int result = com.ExecuteNonQuery();
+                        if (result != 1)
+                            return "something went wrong";
+
+                        return "You have invited him to join your match!";
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -898,45 +1610,82 @@ namespace Soccer_Vision.Models
                         reader.Close();
                 }
             }
-            if (checkSpace == 0)
-                return "No space in match!";
-            else
+        }
+
+        public string inviteFriendToGroup(int groupID, int friendID, int maxPlayers)
+        {
+            int checkSpace = 1;
+            try
             {
-                int checkMatch = checkIfUserMadeMatchInThisDayAndTime(friendID, matchDate, matchTime, playTime, cityID, fieldID);
-                if (checkMatch == 1)
-                    return "You can't invite this friend because he is in another match in this field and date!";
-                else if (checkMatch == -1)
-                    return "Something went wrong";
-                else if (checkMatch == 2)
-                    return "he is in Match in this Time!";
+                con.Open();
+                com.CommandText = $"SELECT Users_Joined FROM FinalProject_Kasem_GroupsTB WHERE Group_ID = {groupID}";
+                reader = com.ExecuteReader();
+                if (reader.Read())
+                {
+                    checkSpace = int.Parse(reader["Users_Joined"].ToString()) < maxPlayers ?
+                        1 : 0;
+                }
+                reader.Close();
+
+                if (checkSpace == 0)
+                    return "No space in group!";
                 else
                 {
-                    try
+                    com.CommandText = $"SELECT Accepted FROM FinalProject_Kasem_UsersInGroupsTB WHERE User_ID = {friendID} AND Group_ID = {groupID}";
+                    reader = com.ExecuteReader();
+                    if (reader.Read())
                     {
-                        con.Open();
-                        com.CommandText = $"INSERT INTO FinalProject_Kasem_UsersInvitedToMatch (Match_ID,User_ID,Accepted) VALUES (@param1,@param2,@param3)";
-                        com.Parameters.AddWithValue("param1", matchID);
-                        com.Parameters.AddWithValue("param2", friendID);
-                        com.Parameters.AddWithValue("param3", false);
-                        int result = com.ExecuteNonQuery();
-                        if (result != 1)
-                            return "something went wrong";
-
-                        return "You have invited him to join your match!";
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e.Message);
-                        throw new Exception(e.Message);
-                    }
-                    finally
-                    {
-                        if (con != null)
+                        if (!bool.Parse(reader["Accepted"].ToString()))
                         {
-                            if (con.State == ConnectionState.Open)
-                                con.Close();
+                            reader.Close();
+                            com.CommandText = $"UPDATE FinalProject_Kasem_UsersInGroupsTB SET Accepted = {1} WHERE User_ID = {friendID} AND Group_ID = {groupID}";
+                            int res = com.ExecuteNonQuery();
+                            if (res < 1)
+                                return "Something went wrong!";
+                            com.CommandText = $"UPDATE FinalProject_Kasem_GroupsTB SET Users_Joined = (Users_Joined + 1) WHERE Group_ID = {groupID}";
+                            res = com.ExecuteNonQuery();
+                            if (res > 0)
+                                return "the player requested to join before you invite him so he will join immediately!";
+                            return "Something went wrong!";
                         }
+                        return "he is in the group!";
                     }
+                    reader.Close();
+                    com.CommandText = $"SELECT User_ID FROM FinalProject_Kasem_UsersInvitedToGroup WHERE User_ID = {friendID} AND Group_ID = {groupID}";
+                    reader = com.ExecuteReader();
+                    if (reader.Read())
+                    {
+                        reader.Close();
+                        return "You have already invited him to join this group!";
+                    }
+                    reader.Close();
+                    com.CommandText = $"INSERT INTO FinalProject_Kasem_UsersInvitedToGroup (Group_ID,User_ID,Accepted) VALUES (@param1,@param2,@param3)";
+                    com.Parameters.AddWithValue("param1", groupID);
+                    com.Parameters.AddWithValue("param2", friendID);
+                    com.Parameters.AddWithValue("param3", false);
+                    int result = com.ExecuteNonQuery();
+                    if (result != 1)
+                        return "something went wrong";
+
+                    return "You have invited him to join your group!";
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+                if (reader != null)
+                {
+                    if (!reader.IsClosed)
+                        reader.Close();
                 }
             }
         }
@@ -1104,7 +1853,7 @@ namespace Soccer_Vision.Models
                     commandText += ")";
                     com.CommandText = commandText;
                     int res = com.ExecuteNonQuery();
-                    if (res != 1)
+                    if (res < 1)
                         throw new Exception();
 
                     return "Done!";
@@ -1135,7 +1884,8 @@ namespace Soccer_Vision.Models
         {
             try
             {
-                if (CheckIfMatchesActive() == "Done!")
+                string check = CheckIfMatchesActive();
+                if (check == "Done!")
                 {
                     con.Open();
                     com.CommandText = "SELECT * FROM FinalProject_Kasem_MatchesTB WHERE IsActive = 'True'";
@@ -1147,7 +1897,7 @@ namespace Soccer_Vision.Models
                     else
                         return null;
                 }
-                throw new Exception("Something went wrong!");
+                throw new Exception(check);
 
             }
             catch (Exception e)
@@ -1342,7 +2092,7 @@ namespace Soccer_Vision.Models
                             commandText += $",{int.Parse(user["User_ID"].ToString())}";
                         }
                     }
-                    else if(int.Parse(user["Friend_ID"].ToString()) != userID)
+                    else if (int.Parse(user["Friend_ID"].ToString()) != userID)
                     {
                         if (tempCount == 0)
                         {
@@ -1459,6 +2209,64 @@ namespace Soccer_Vision.Models
             }
         }
 
+        public DataTable getUsersInGroupList()
+        {
+            try
+            {
+                con.Open();
+                com.CommandText = $"SELECT * FROM FinalProject_Kasem_UsersInGroupsTB";
+                adapt = new SqlDataAdapter(com);
+                adapt.Fill(ds, "UsersInGroups");
+
+                if (ds.Tables["UsersInGroups"].Rows.Count != 0)
+                    return ds.Tables["UsersInGroups"];
+                else
+                    return null;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+            }
+        }
+
+        public DataTable getUsersInvitedToGroupTable()
+        {
+            try
+            {
+                con.Open();
+                com.CommandText = $"SELECT * FROM FinalProject_Kasem_UsersInvitedToGroup";
+                adapt = new SqlDataAdapter(com);
+                adapt.Fill(ds, "UsersInvitedToGroup");
+
+                if (ds.Tables["UsersInvitedToGroup"].Rows.Count != 0)
+                    return ds.Tables["UsersInvitedToGroup"];
+                else
+                    return null;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+            }
+        }
+
         public DataTable getUsers()
         {
             try
@@ -1508,6 +2316,35 @@ namespace Soccer_Vision.Models
                     fields = ds.Tables[1]
                 };
 
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw new Exception(e.Message);
+            }
+            finally
+            {
+                if (con != null)
+                {
+                    if (con.State == ConnectionState.Open)
+                        con.Close();
+                }
+            }
+        }
+
+        public DataTable getGroupsTable()
+        {
+            try
+            {
+                con.Open();
+                com.CommandText = "SELECT * FROM FinalProject_Kasem_GroupsTB";
+                adapt = new SqlDataAdapter(com);
+                adapt.Fill(ds, "Groups");
+
+                if (ds.Tables["Groups"].Rows.Count != 0)
+                    return ds.Tables["Groups"];
+                else
+                    return null;
             }
             catch (Exception e)
             {

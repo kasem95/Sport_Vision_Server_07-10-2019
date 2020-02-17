@@ -14,6 +14,8 @@ namespace Soccer_Vision.Models
         public int UserID { get; set; }
         public string Username { get; set; }
         public string PhotoName { get; set; }
+        public string Google_ID { get; set; }
+        public string Facebook_ID { get; set; }
         public string Email
         {
             get

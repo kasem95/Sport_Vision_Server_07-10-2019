@@ -81,5 +81,56 @@ namespace Soccer_Vision.Controllers
             }
         }
 
+        [Route("ChangeUsername")]
+        public IHttpActionResult PutChangeUsername([FromBody]User value)
+        {
+            try
+            {
+                DAL dal = new DAL();
+                string result = dal.changeUsername(value.UserID, value.Username);
+                return Content(HttpStatusCode.OK, result);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return Content(HttpStatusCode.BadRequest, e.Message);
+            }
+        }
+
+        [Route("ChangePassword")]
+        public IHttpActionResult PutChangePassword([FromBody]User value)
+        {
+            try
+            {
+                DAL dal = new DAL();
+                string result = dal.changePassword(value.UserID, value.Password);
+                return Content(HttpStatusCode.OK, result);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return Content(HttpStatusCode.BadRequest, e.Message);
+            }
+        }
+
+        [Route("{userID}/getUser")]
+        public IHttpActionResult GetUserAfterChanges(int userID)
+        {
+            try
+            {
+                DAL dal = new DAL();
+                User user = dal.getUserAfterChanges(userID);
+                if (user == null)
+                    return Content(HttpStatusCode.NotFound, "User does not exist");
+                else
+                    return Ok(user);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return Content(HttpStatusCode.BadRequest, "Something went wrong");
+            }
+        }
+
     }
 }

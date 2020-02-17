@@ -34,6 +34,24 @@ namespace Soccer_Vision.Controllers
 
         }
 
+        [Route("CreateMatchWithGroup")]
+        public IHttpActionResult PostCreateMatchWithGroup([FromBody]MatchWithGroup match)
+        {
+            try
+            {
+                DAL dal = new DAL();
+                int result = dal.createMatchWithGroup(match.UserID, match.MatchName, match.MatchDate, match.MatchTime, match.FieldID, match.CityID, match.IsPrivate, match.MatchKey, match.MaxPlayers, match.PlayTime, match.UsersInGroup);
+                return Content(HttpStatusCode.Created, result);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return Content(HttpStatusCode.BadRequest, e.Message);
+            }
+
+
+        }
+
         [Route("RequestJoinMatch")]
         public IHttpActionResult PostRequestJoinMatch([FromBody]RequestJoinMatchClass value)
         {
@@ -229,7 +247,7 @@ namespace Soccer_Vision.Controllers
                 if (result != null)
                     return Ok(result);
                 else
-                    return BadRequest("Something went wrong");
+                    return BadRequest("No users In the Match");
             }
             catch (Exception e)
             {
@@ -248,7 +266,7 @@ namespace Soccer_Vision.Controllers
                 if (result != null)
                     return Ok(result);
                 else
-                    return BadRequest("Something went wrong");
+                    return BadRequest("No users In the Match");
             }
             catch (Exception e)
             {
